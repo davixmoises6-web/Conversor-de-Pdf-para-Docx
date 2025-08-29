@@ -3,10 +3,10 @@ import { motion } from "framer-motion";
 import { FileDown, Loader2 } from "lucide-react";
 import { Document, Packer, Paragraph, TextRun, PageBreak } from "docx";
 import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf";
-import pdfWorker from "pdfjs-dist/legacy/build/pdf.worker.entry";
+import pdfWorkerUrl from "pdfjs-dist/legacy/build/pdf.worker.entry?worker";
 
-// Configura o worker do PDF.js corretamente para Vite
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
+// Configura o worker corretamente para Vite
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 export default function App() {
   const [tab, setTab] = useState("leitor");
@@ -51,6 +51,7 @@ export default function App() {
         .trim();
       allPagesText.push(pageText);
     }
+
     return allPagesText;
   }
 
