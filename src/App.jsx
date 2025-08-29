@@ -2,13 +2,12 @@ import React, { useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { FileDown, Loader2 } from "lucide-react";
 import { Document, Packer, Paragraph, TextRun, PageBreak } from "docx";
-
-// Importa PDF.js e o worker embutido
 import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf";
-import PdfWorker from "pdfjs-dist/legacy/build/pdf.worker.entry";
+import createWorker from "./pdf.worker";
 
-// Configura o worker embutido
-pdfjsLib.GlobalWorkerOptions.workerPort = new PdfWorker.Worker();
+// Cria e conecta o worker
+const worker = createWorker();
+pdfjsLib.GlobalWorkerOptions.workerPort = worker;
 
 export default function App() {
   const [tab, setTab] = useState("leitor");
@@ -39,8 +38,8 @@ export default function App() {
 
   async function extractTextWithPDFjs(pdfArrayBuffer) {
     const pdf = await pdfjsLib.getDocument({ data: pdfArrayBuffer }).promise;
-
     const allPagesText = [];
+
     for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
       setStatus(`Lendo página ${pageNum}/${pdf.numPages}...`);
       const page = await pdf.getPage(pageNum);
@@ -125,18 +124,8 @@ export default function App() {
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 20px", background: "#4B0082", color: "#fff" }}>
         <h1 style={{ margin: 0 }}>Leitor e Conversor de PDF</h1>
         <div>
-          <button
-            onClick={() => setTab("leitor")}
-            style={{ border: "none", background: "none", borderBottom: tab === "leitor" ? "2px solid #9307caff" : "none", color: tab === "leitor" ? "#ffffffff" : "#7700ffff", marginRight: 10, padding: 5, cursor: "pointer" }}
-          >
-            Leitor
-          </button>
-          <button
-            onClick={() => setTab("conversor")}
-            style={{ border: "none", background: "none", borderBottom: tab === "conversor" ? "2px solid #7700ffff" : "none", color: tab === "conversor" ? "#700baaff" : "#fff", padding: 5, cursor: "pointer" }}
-          >
-            Conversor
-          </button>
+          <button onClick={() => setTab("leitor")} style={{ border: "none", background: "none", borderBottom: tab === "leitor" ? "2px solid #9307caff" : "none", color: tab === "leitor" ? "#ffffffff" : "#7700ffff", marginRight: 10, padding: 5, cursor: "pointer" }}>Leitor</button>
+          <button onClick={() => setTab("conversor")} style={{ border: "none", background: "none", borderBottom: tab === "conversor" ? "2px solid #7700ffff" : "none", color: tab === "conversor" ? "#700baaff" : "#fff", padding: 5, cursor: "pointer" }}>Conversor</button>
         </div>
       </header>
 
@@ -146,11 +135,7 @@ export default function App() {
             <input type="file" accept="application/pdf" onChange={handleFileChange} />
           </div>
           <div style={{ flex: 1, background: "#616161ff", display: "flex", justifyContent: "center", alignItems: "center", border: "1px solid #ccc", borderRadius: 8 }}>
-            {pdfUrl ? (
-              <iframe ref={iframeRef} src={pdfUrl} style={{ width: "100%", height: "100%" }} title="PDF" />
-            ) : (
-              <span style={{ color: "#888" }}>Selecione um PDF para visualizar.</span>
-            )}
+            {pdfUrl ? <iframe ref={iframeRef} src={pdfUrl} style={{ width: "100%", height: "100%" }} title="PDF" /> : <span style={{ color: "#888" }}>Selecione um PDF para visualizar.</span>}
           </div>
         </div>
 
@@ -161,22 +146,8 @@ export default function App() {
                 <input type="checkbox" checked={includePageBreaks} onChange={(e) => setIncludePageBreaks(e.target.checked)} />
                 Inserir quebra de página
               </label>
-              <motion.button
-                whileTap={{ scale: 0.98 }}
-                disabled={!file || busy}
-                onClick={handleConvert}
-                style={{ padding: 10, marginTop: 10, cursor: "pointer", backgroundColor: "#535353ff", color: "#a7a7a7ff", border: "none", borderRadius: 5 }}
-              >
-                {busy ? (
-                  <>
-                    <Loader2 style={{ width: 16, height: 16, marginRight: 5 }} className="animate-spin" />
-                    Convertendo...
-                  </>
-                ) : (
-                  <>
-                    <FileDown style={{ width: 16, height: 16, marginRight: 5 }} /> Converter
-                  </>
-                )}
+              <motion.button whileTap={{ scale: 0.98 }} disabled={!file || busy} onClick={handleConvert} style={{ padding: 10, marginTop: 10, cursor: "pointer", backgroundColor: "#535353ff", color: "#a7a7a7ff", border: "none", borderRadius: 5 }}>
+                {busy ? <><Loader2 style={{ width: 16, height: 16, marginRight: 5 }} className="animate-spin" /> Convertendo...</> : <><FileDown style={{ width: 16, height: 16, marginRight: 5 }} /> Converter</>}
               </motion.button>
               {status && <p style={{ marginTop: 10, color: statusError ? "red" : "green" }}>{status}</p>}
             </>
