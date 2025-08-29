@@ -30,9 +30,12 @@ export default function App() {
     setStatusError(false);
   }
 
-  // Função para extrair texto, incluindo PDFs protegidos por senha
+  // Função para extrair texto do PDF
   async function extractTextWithPDFjs(pdfArrayBuffer) {
-    const pdfjs = await import("pdfjs-dist/build/pdf");
+    // Carrega PDF.js dinamicamente
+    const pdfjs = await import("pdfjs-dist/legacy/build/pdf");
+
+    // Configura o worker pelo CDN para evitar erro de build
     pdfjs.GlobalWorkerOptions.workerSrc =
       "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.8.69/pdf.worker.min.js";
 
