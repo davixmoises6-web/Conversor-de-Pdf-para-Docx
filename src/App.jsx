@@ -30,38 +30,20 @@ export default function App() {
     setStatusError(false);
   }
 
-  // Função para extrair texto do PDF
+  // Função para extrair texto do PDF usando worker embutido
   async function extractTextWithPDFjs(pdfArrayBuffer) {
-    // Carrega PDF.js dinamicamente
+    // Importa PDF.js dinamicamente
     const pdfjs = await import("pdfjs-dist/legacy/build/pdf");
+    const pdfWorkerModule = await import("pdfjs-dist/legacy/build/pdf.worker.entry");
 
-    // Configura o worker pelo CDN para evitar erro de build
-    pdfjs.GlobalWorkerOptions.workerSrc =
-      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.8.69/pdf.worker.min.js";
+    // Configura o worker embutido
+    pdfjs.GlobalWorkerOptions.workerPort = new pdfWorkerModule.Worker();
 
     let pdf;
-    let passwordTried = false;
-
-    while (true) {
-      try {
-        pdf = await pdfjs.getDocument({
-          data: pdfArrayBuffer,
-          password: passwordTried ? passwordTried : undefined,
-        }).promise;
-        break;
-      } catch (err) {
-        if (err.name === "PasswordException") {
-          const pwd = window.prompt(
-            passwordTried
-              ? "Senha incorreta. Tente novamente:"
-              : "Este PDF está protegido por senha. Digite a senha:"
-          );
-          if (!pwd) throw new Error("Senha não fornecida.");
-          passwordTried = pwd;
-        } else {
-          throw new Error("Não foi possível abrir o PDF: " + err.message);
-        }
-      }
+    try {
+      pdf = await pdfjs.getDocument({ data: pdfArrayBuffer }).promise;
+    } catch (err) {
+      throw new Error("Não foi possível abrir o PDF: " + err.message);
     }
 
     const allPagesText = [];
@@ -180,3 +162,4 @@ export default function App() {
     </div>
   );
 }
+
