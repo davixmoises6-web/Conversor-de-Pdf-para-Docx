@@ -3,11 +3,10 @@ import { motion } from "framer-motion";
 import { FileDown, Loader2 } from "lucide-react";
 import { Document, Packer, Paragraph, TextRun, PageBreak } from "docx";
 import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf";
-import createWorker from "./pdf.worker";
+import pdfWorkerUrl from "pdfjs-dist/legacy/build/pdf.worker.entry";
 
-// Cria e conecta o worker
-const worker = createWorker();
-pdfjsLib.GlobalWorkerOptions.workerPort = worker;
+// Configuração do worker para Vite
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(pdfWorkerUrl, import.meta.url).toString();
 
 export default function App() {
   const [tab, setTab] = useState("leitor");
