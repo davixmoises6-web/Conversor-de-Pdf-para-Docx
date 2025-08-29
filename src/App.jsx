@@ -30,15 +30,27 @@ export default function App() {
     setStatusError(false);
   }
 
-  // Função para extrair texto do PDF usando CDN worker
-  async function extractTextWithPDFjs(pdfArrayBuffer) {
+  // Função para extrair texto de PDFs, incluindo protegidos por senha
+  async function extractTextWithPDFjs(pdfArrayBuffer, passwordCallback) {
     const pdfjs = await import("pdfjs-dist/build/pdf");
 
     pdfjs.GlobalWorkerOptions.workerSrc =
       "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.8.69/pdf.worker.min.js";
 
-    const loadingTask = pdfjs.getDocument({ data: pdfArrayBuffer });
-    const pdf = await loadingTask.promise;
+    let pdf;
+    try {
+      const loadingTask = pdfjs.getDocument({
+        data: pdfArrayBuffer,
+        password: passwordCallback,
+      });
+      pdf = await loadingTask.promise;
+    } catch (err) {
+      if (err.name === "PasswordException") {
+        throw err;
+      } else {
+        throw new Error("Não foi possível abrir o PDF.");
+      }
+    }
 
     const allPagesText = [];
 
@@ -99,10 +111,17 @@ export default function App() {
 
     try {
       const buf = await file.arrayBuffer();
-      console.log("Buffer carregado:", buf.byteLength);
 
-      const pages = await extractTextWithPDFjs(buf);
-      console.log("Páginas extraídas:", pages.length);
+      const pages = await extractTextWithPDFjs(buf, async (reason) => {
+        // Solicita senha ao usuário se o PDF estiver protegido
+        const promptMessage =
+          reason === "needPassword"
+            ? "Este PDF está protegido por senha. Digite a senha:"
+            : "Senha incorreta. Tente novamente:";
+        const pwd = window.prompt(promptMessage);
+        if (!pwd) throw new Error("Senha não fornecida.");
+        return pwd;
+      });
 
       setStatus("Gerando DOCX...");
       const doc = new Document({
@@ -133,9 +152,7 @@ export default function App() {
       setStatusError(false);
     } catch (err) {
       console.error("Erro detalhado:", err);
-      setStatus(
-        "Falha na conversão. Verifique se o PDF não está protegido por senha ou se o arquivo é válido."
-      );
+      setStatus(err.message || "Falha na conversão do PDF.");
       setStatusError(true);
     } finally {
       setBusy(false);
@@ -269,5 +286,6 @@ export default function App() {
     </div>
   );
 }
+
 
 
