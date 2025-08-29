@@ -30,43 +30,50 @@ export default function App() {
     setStatusError(false);
   }
 
-  async function extractTextWithPDFjs(pdfArrayBuffer, passwordCallback) {
+  // Função para extrair texto, incluindo PDFs protegidos por senha
+  async function extractTextWithPDFjs(pdfArrayBuffer) {
     const pdfjs = await import("pdfjs-dist/build/pdf");
     pdfjs.GlobalWorkerOptions.workerSrc =
       "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.8.69/pdf.worker.min.js";
 
     let pdf;
-    try {
-      const loadingTask = pdfjs.getDocument({
-        data: pdfArrayBuffer,
-        password: passwordCallback,
-      });
-      pdf = await loadingTask.promise;
-    } catch (err) {
-      if (err.name === "PasswordException") throw err;
-      throw new Error("Não foi possível abrir o PDF.");
+    let passwordTried = false;
+
+    while (true) {
+      try {
+        pdf = await pdfjs.getDocument({
+          data: pdfArrayBuffer,
+          password: passwordTried ? passwordTried : undefined,
+        }).promise;
+        break;
+      } catch (err) {
+        if (err.name === "PasswordException") {
+          const pwd = window.prompt(
+            passwordTried
+              ? "Senha incorreta. Tente novamente:"
+              : "Este PDF está protegido por senha. Digite a senha:"
+          );
+          if (!pwd) throw new Error("Senha não fornecida.");
+          passwordTried = pwd;
+        } else {
+          throw new Error("Não foi possível abrir o PDF: " + err.message);
+        }
+      }
     }
 
     const allPagesText = [];
     for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-      try {
-        setStatus(`Lendo página ${pageNum}/${pdf.numPages}...`);
-        const page = await pdf.getPage(pageNum);
-        const textContent = await page.getTextContent();
-        const pageText = textContent.items
-          .map((item) => ("str" in item ? item.str : item?.text || ""))
-          .join(" ")
-          .replace(/[\u0000-\u001F]+/g, " ")
-          .replace(/\s+/g, " ")
-          .trim();
-        allPagesText.push(pageText);
-      } catch {
-        allPagesText.push("");
-      }
+      setStatus(`Lendo página ${pageNum}/${pdf.numPages}...`);
+      const page = await pdf.getPage(pageNum);
+      const textContent = await page.getTextContent();
+      const pageText = textContent.items
+        .map((item) => ("str" in item ? item.str : item?.text || ""))
+        .join(" ")
+        .replace(/[\u0000-\u001F]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+      allPagesText.push(pageText);
     }
-
-    if (!allPagesText.length)
-      throw new Error("Não foi possível extrair texto de nenhuma página do PDF.");
 
     return allPagesText;
   }
@@ -97,16 +104,7 @@ export default function App() {
 
     try {
       const buf = await file.arrayBuffer();
-
-      const pages = await extractTextWithPDFjs(buf, async (reason) => {
-        const promptMessage =
-          reason === "needPassword"
-            ? "Este PDF está protegido por senha. Digite a senha:"
-            : "Senha incorreta. Tente novamente:";
-        const pwd = window.prompt(promptMessage);
-        if (!pwd) throw new Error("Senha não fornecida.");
-        return pwd;
-      });
+      const pages = await extractTextWithPDFjs(buf);
 
       setStatus("Gerando DOCX...");
       const doc = new Document({
