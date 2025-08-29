@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { FileDown, FileText, Loader2 } from "lucide-react";
+import { FileDown, Loader2 } from "lucide-react";
 import { Document, Packer, Paragraph, TextRun, PageBreak } from "docx";
 
 export default function App() {
@@ -30,8 +30,11 @@ export default function App() {
     setStatusError(false);
   }
 
+  // Função atualizada para extrair texto do PDF
   async function extractTextWithPDFjs(pdfArrayBuffer) {
-    const pdfjs = await import("pdfjs-dist/build/pdf");
+    const pdfjs = await import("pdfjs-dist/legacy/build/pdf");
+    import("pdfjs-dist/legacy/build/pdf.worker.entry"); // garante worker local
+
     pdfjs.GlobalWorkerOptions.workerSrc =
       "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.8.69/pdf.worker.min.js";
 
@@ -39,18 +42,30 @@ export default function App() {
     const pdf = await loadingTask.promise;
 
     const allPagesText = [];
+
     for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-      setStatus(`Lendo página ${pageNum}/${pdf.numPages}...`);
-      const page = await pdf.getPage(pageNum);
-      const textContent = await page.getTextContent();
-      const pageText = textContent.items
-        .map((item) => ("str" in item ? item.str : (item?.text || "")))
-        .join(" ")
-        .replace(/[\u0000-\u001F]+/g, " ")
-        .replace(/\s+/g, " ")
-        .trim();
-      allPagesText.push(pageText);
+      try {
+        setStatus(`Lendo página ${pageNum}/${pdf.numPages}...`);
+        const page = await pdf.getPage(pageNum);
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items
+          .map((item) => ("str" in item ? item.str : item?.text || ""))
+          .join(" ")
+          .replace(/[\u0000-\u001F]+/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
+
+        allPagesText.push(pageText);
+      } catch (err) {
+        console.warn(`Erro ao ler a página ${pageNum}:`, err);
+        allPagesText.push(""); // mantém o índice da página
+      }
     }
+
+    if (allPagesText.length === 0) {
+      throw new Error("Não foi possível extrair texto de nenhuma página do PDF.");
+    }
+
     return allPagesText;
   }
 
@@ -85,7 +100,10 @@ export default function App() {
 
     try {
       const buf = await file.arrayBuffer();
+      console.log("Buffer carregado:", buf.byteLength);
+
       const pages = await extractTextWithPDFjs(buf);
+      console.log("Páginas extraídas:", pages.length);
 
       setStatus("Gerando DOCX...");
       const doc = new Document({
@@ -115,8 +133,10 @@ export default function App() {
       setStatus("Pronto! Documento gerado.");
       setStatusError(false);
     } catch (err) {
-      console.error(err);
-      setStatus("Falha na conversão. Verifique se o PDF não está protegido por senha.");
+      console.error("Erro detalhado:", err);
+      setStatus(
+        "Falha na conversão. Verifique se o PDF não está protegido por senha ou se o arquivo é válido."
+      );
       setStatusError(true);
     } finally {
       setBusy(false);
@@ -124,8 +144,25 @@ export default function App() {
   }
 
   return (
-    <div style={{ fontFamily: "Arial, sans-serif", width: "100vw", height: "100vh", display: "flex", flexDirection: "column" }}>
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 20px", background: "#4B0082", color: "#fff" }}>
+    <div
+      style={{
+        fontFamily: "Arial, sans-serif",
+        width: "100vw",
+        height: "100vh",
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
+      <header
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          padding: "10px 20px",
+          background: "#4B0082",
+          color: "#fff",
+        }}
+      >
         <h1 style={{ margin: 0 }}>Leitor e Conversor de PDF</h1>
         <div>
           <button
@@ -163,8 +200,27 @@ export default function App() {
           <div style={{ marginBottom: 10 }}>
             <input type="file" accept="application/pdf" onChange={handleFileChange} />
           </div>
-          <div style={{ flex: 1, background: "#616161ff", display: "flex", justifyContent: "center", alignItems: "center", border: "1px solid #ccc", borderRadius: 8 }}>
-            {pdfUrl ? <iframe ref={iframeRef} src={pdfUrl} style={{ width: "100%", height: "100%" }} title="PDF" /> : <span style={{ color: "#888" }}>Selecione um PDF para visualizar.</span>}
+          <div
+            style={{
+              flex: 1,
+              background: "#616161ff",
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              border: "1px solid #ccc",
+              borderRadius: 8,
+            }}
+          >
+            {pdfUrl ? (
+              <iframe
+                ref={iframeRef}
+                src={pdfUrl}
+                style={{ width: "100%", height: "100%" }}
+                title="PDF"
+              />
+            ) : (
+              <span style={{ color: "#888" }}>Selecione um PDF para visualizar.</span>
+            )}
           </div>
         </div>
 
@@ -172,7 +228,11 @@ export default function App() {
           {tab === "conversor" && (
             <>
               <label style={{ display: "flex", alignItems: "center", gap: 5, color: "#333" }}>
-                <input type="checkbox" checked={includePageBreaks} onChange={(e) => setIncludePageBreaks(e.target.checked)} />
+                <input
+                  type="checkbox"
+                  checked={includePageBreaks}
+                  onChange={(e) => setIncludePageBreaks(e.target.checked)}
+                />
                 Inserir quebra de página
               </label>
               <motion.button
@@ -189,9 +249,20 @@ export default function App() {
                   borderRadius: 5,
                 }}
               >
-                {busy ? <><Loader2 style={{ width: 16, height: 16, marginRight: 5 }} className="animate-spin" /> Convertendo...</> : <><FileDown style={{ width: 16, height: 16, marginRight: 5 }} /> Converter</>}
+                {busy ? (
+                  <>
+                    <Loader2 style={{ width: 16, height: 16, marginRight: 5 }} className="animate-spin" />
+                    Convertendo...
+                  </>
+                ) : (
+                  <>
+                    <FileDown style={{ width: 16, height: 16, marginRight: 5 }} /> Converter
+                  </>
+                )}
               </motion.button>
-              {status && <p style={{ marginTop: 10, color: statusError ? "red" : "green" }}>{status}</p>}
+              {status && (
+                <p style={{ marginTop: 10, color: statusError ? "red" : "green" }}>{status}</p>
+              )}
             </>
           )}
         </div>
@@ -199,3 +270,4 @@ export default function App() {
     </div>
   );
 }
+
