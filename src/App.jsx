@@ -30,11 +30,8 @@ export default function App() {
     setStatusError(false);
   }
 
-  // Função para extrair texto de PDFs, incluindo protegidos por senha
   async function extractTextWithPDFjs(pdfArrayBuffer, passwordCallback) {
     const pdfjs = await import("pdfjs-dist/build/pdf");
-
-    // Usa worker via CDN, não precisa importar local
     pdfjs.GlobalWorkerOptions.workerSrc =
       "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.8.69/pdf.worker.min.js";
 
@@ -46,15 +43,11 @@ export default function App() {
       });
       pdf = await loadingTask.promise;
     } catch (err) {
-      if (err.name === "PasswordException") {
-        throw err;
-      } else {
-        throw new Error("Não foi possível abrir o PDF.");
-      }
+      if (err.name === "PasswordException") throw err;
+      throw new Error("Não foi possível abrir o PDF.");
     }
 
     const allPagesText = [];
-
     for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
       try {
         setStatus(`Lendo página ${pageNum}/${pdf.numPages}...`);
@@ -66,27 +59,21 @@ export default function App() {
           .replace(/[\u0000-\u001F]+/g, " ")
           .replace(/\s+/g, " ")
           .trim();
-
         allPagesText.push(pageText);
-      } catch (err) {
-        console.warn(`Erro ao ler a página ${pageNum}:`, err);
+      } catch {
         allPagesText.push("");
       }
     }
 
-    if (allPagesText.length === 0) {
+    if (!allPagesText.length)
       throw new Error("Não foi possível extrair texto de nenhuma página do PDF.");
-    }
 
     return allPagesText;
   }
 
   function splitIntoParagraphs(text) {
     const byPunct = text.split(/([.!?])\s+/).reduce((acc, cur, idx, arr) => {
-      if (idx % 2 === 0) {
-        const sentence = cur + (arr[idx + 1] || "");
-        acc.push(sentence.trim());
-      }
+      if (idx % 2 === 0) acc.push(cur + (arr[idx + 1] || ""));
       return acc;
     }, []);
 
@@ -96,9 +83,7 @@ export default function App() {
       if ((buf + " " + s).length > 1000 && buf.length > 0) {
         paras.push(buf.trim());
         buf = s;
-      } else {
-        buf = buf ? buf + " " + s : s;
-      }
+      } else buf = buf ? buf + " " + s : s;
     }
     if (buf) paras.push(buf.trim());
     return paras.filter(Boolean);
@@ -114,7 +99,6 @@ export default function App() {
       const buf = await file.arrayBuffer();
 
       const pages = await extractTextWithPDFjs(buf, async (reason) => {
-        // Solicita senha se necessário
         const promptMessage =
           reason === "needPassword"
             ? "Este PDF está protegido por senha. Digite a senha:"
@@ -152,7 +136,7 @@ export default function App() {
       setStatus("Pronto! Documento gerado.");
       setStatusError(false);
     } catch (err) {
-      console.error("Erro detalhado:", err);
+      console.error(err);
       setStatus(err.message || "Falha na conversão do PDF.");
       setStatusError(true);
     } finally {
@@ -161,54 +145,12 @@ export default function App() {
   }
 
   return (
-    <div
-      style={{
-        fontFamily: "Arial, sans-serif",
-        width: "100vw",
-        height: "100vh",
-        display: "flex",
-        flexDirection: "column",
-      }}
-    >
-      <header
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          padding: "10px 20px",
-          background: "#4B0082",
-          color: "#fff",
-        }}
-      >
+    <div style={{ fontFamily: "Arial,sans-serif", width: "100vw", height: "100vh", display: "flex", flexDirection: "column" }}>
+      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: 10, background: "#4B0082", color: "#fff" }}>
         <h1 style={{ margin: 0 }}>Leitor e Conversor de PDF</h1>
         <div>
-          <button
-            onClick={() => setTab("leitor")}
-            style={{
-              border: "none",
-              background: "none",
-              borderBottom: tab === "leitor" ? "2px solid #9307caff" : "none",
-              color: tab === "leitor" ? "#ffffffff" : "#7700ffff",
-              marginRight: 10,
-              padding: 5,
-              cursor: "pointer",
-            }}
-          >
-            Leitor
-          </button>
-          <button
-            onClick={() => setTab("conversor")}
-            style={{
-              border: "none",
-              background: "none",
-              borderBottom: tab === "conversor" ? "2px solid #7700ffff" : "none",
-              color: tab === "conversor" ? "#700baaff" : "#fff",
-              padding: 5,
-              cursor: "pointer",
-            }}
-          >
-            Conversor
-          </button>
+          <button onClick={() => setTab("leitor")} style={{ border: "none", background: "none", borderBottom: tab === "leitor" ? "2px solid #9307caff" : "none", color: tab === "leitor" ? "#fff" : "#7700ffff", marginRight: 10, padding: 5, cursor: "pointer" }}>Leitor</button>
+          <button onClick={() => setTab("conversor")} style={{ border: "none", background: "none", borderBottom: tab === "conversor" ? "2px solid #7700ffff" : "none", color: tab === "conversor" ? "#700baaff" : "#fff", padding: 5, cursor: "pointer" }}>Conversor</button>
         </div>
       </header>
 
@@ -217,77 +159,23 @@ export default function App() {
           <div style={{ marginBottom: 10 }}>
             <input type="file" accept="application/pdf" onChange={handleFileChange} />
           </div>
-          <div
-            style={{
-              flex: 1,
-              background: "#616161ff",
-              display: "flex",
-              justifyContent: "center",
-              alignItems: "center",
-              border: "1px solid #ccc",
-              borderRadius: 8,
-            }}
-          >
-            {pdfUrl ? (
-              <iframe
-                ref={iframeRef}
-                src={pdfUrl}
-                style={{ width: "100%", height: "100%" }}
-                title="PDF"
-              />
-            ) : (
-              <span style={{ color: "#888" }}>Selecione um PDF para visualizar.</span>
-            )}
+          <div style={{ flex: 1, background: "#616161ff", display: "flex", justifyContent: "center", alignItems: "center", border: "1px solid #ccc", borderRadius: 8 }}>
+            {pdfUrl ? <iframe ref={iframeRef} src={pdfUrl} style={{ width: "100%", height: "100%" }} title="PDF" /> : <span style={{ color: "#888" }}>Selecione um PDF para visualizar.</span>}
           </div>
         </div>
 
         <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-          {tab === "conversor" && (
-            <>
-              <label style={{ display: "flex", alignItems: "center", gap: 5, color: "#333" }}>
-                <input
-                  type="checkbox"
-                  checked={includePageBreaks}
-                  onChange={(e) => setIncludePageBreaks(e.target.checked)}
-                />
-                Inserir quebra de página
-              </label>
-              <motion.button
-                whileTap={{ scale: 0.98 }}
-                disabled={!file || busy}
-                onClick={handleConvert}
-                style={{
-                  padding: 10,
-                  marginTop: 10,
-                  cursor: "pointer",
-                  backgroundColor: "#535353ff",
-                  color: "#a7a7a7ff",
-                  border: "none",
-                  borderRadius: 5,
-                }}
-              >
-                {busy ? (
-                  <>
-                    <Loader2 style={{ width: 16, height: 16, marginRight: 5 }} className="animate-spin" />
-                    Convertendo...
-                  </>
-                ) : (
-                  <>
-                    <FileDown style={{ width: 16, height: 16, marginRight: 5 }} /> Converter
-                  </>
-                )}
-              </motion.button>
-              {status && (
-                <p style={{ marginTop: 10, color: statusError ? "red" : "green" }}>{status}</p>
-              )}
-            </>
-          )}
+          {tab === "conversor" && <>
+            <label style={{ display: "flex", alignItems: "center", gap: 5, color: "#333" }}>
+              <input type="checkbox" checked={includePageBreaks} onChange={(e) => setIncludePageBreaks(e.target.checked)} /> Inserir quebra de página
+            </label>
+            <motion.button whileTap={{ scale: 0.98 }} disabled={!file || busy} onClick={handleConvert} style={{ padding: 10, marginTop: 10, cursor: "pointer", backgroundColor: "#535353ff", color: "#a7a7a7ff", border: "none", borderRadius: 5 }}>
+              {busy ? <><Loader2 style={{ width: 16, height: 16, marginRight: 5 }} className="animate-spin" /> Convertendo...</> : <><FileDown style={{ width: 16, height: 16, marginRight: 5 }} /> Converter</>}
+            </motion.button>
+            {status && <p style={{ marginTop: 10, color: statusError ? "red" : "green" }}>{status}</p>}
+          </>}
         </div>
       </main>
     </div>
   );
 }
-
-
-
-
