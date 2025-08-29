@@ -34,6 +34,7 @@ export default function App() {
   async function extractTextWithPDFjs(pdfArrayBuffer, passwordCallback) {
     const pdfjs = await import("pdfjs-dist/build/pdf");
 
+    // Usa worker via CDN, não precisa importar local
     pdfjs.GlobalWorkerOptions.workerSrc =
       "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.8.69/pdf.worker.min.js";
 
@@ -113,7 +114,7 @@ export default function App() {
       const buf = await file.arrayBuffer();
 
       const pages = await extractTextWithPDFjs(buf, async (reason) => {
-        // Solicita senha ao usuário se o PDF estiver protegido
+        // Solicita senha se necessário
         const promptMessage =
           reason === "needPassword"
             ? "Este PDF está protegido por senha. Digite a senha:"
@@ -286,6 +287,7 @@ export default function App() {
     </div>
   );
 }
+
 
 
 
