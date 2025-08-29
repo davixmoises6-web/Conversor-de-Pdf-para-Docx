@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { FileDown, Loader2 } from "lucide-react";
 import { Document, Packer, Paragraph, TextRun, PageBreak } from "docx";
 import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf";
-import pdfWorkerUrl from "pdfjs-dist/legacy/build/pdf.worker.entry?worker";
+import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.js?url";
 
 // Configura o worker corretamente para Vite
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
