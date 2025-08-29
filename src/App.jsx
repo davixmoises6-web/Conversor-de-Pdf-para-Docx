@@ -3,6 +3,13 @@ import { motion } from "framer-motion";
 import { FileDown, Loader2 } from "lucide-react";
 import { Document, Packer, Paragraph, TextRun, PageBreak } from "docx";
 
+// Importa PDF.js e o worker embutido
+import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf";
+import PdfWorker from "pdfjs-dist/legacy/build/pdf.worker.entry";
+
+// Configura o worker embutido
+pdfjsLib.GlobalWorkerOptions.workerPort = new PdfWorker.Worker();
+
 export default function App() {
   const [tab, setTab] = useState("leitor");
   const [file, setFile] = useState(null);
@@ -30,21 +37,8 @@ export default function App() {
     setStatusError(false);
   }
 
-  // Função para extrair texto do PDF usando worker embutido
   async function extractTextWithPDFjs(pdfArrayBuffer) {
-    // Importa PDF.js dinamicamente
-    const pdfjs = await import("pdfjs-dist/legacy/build/pdf");
-    const pdfWorkerModule = await import("pdfjs-dist/legacy/build/pdf.worker.entry");
-
-    // Configura o worker embutido
-    pdfjs.GlobalWorkerOptions.workerPort = new pdfWorkerModule.Worker();
-
-    let pdf;
-    try {
-      pdf = await pdfjs.getDocument({ data: pdfArrayBuffer }).promise;
-    } catch (err) {
-      throw new Error("Não foi possível abrir o PDF: " + err.message);
-    }
+    const pdf = await pdfjsLib.getDocument({ data: pdfArrayBuffer }).promise;
 
     const allPagesText = [];
     for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
@@ -59,7 +53,6 @@ export default function App() {
         .trim();
       allPagesText.push(pageText);
     }
-
     return allPagesText;
   }
 
@@ -129,11 +122,21 @@ export default function App() {
 
   return (
     <div style={{ fontFamily: "Arial,sans-serif", width: "100vw", height: "100vh", display: "flex", flexDirection: "column" }}>
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: 10, background: "#4B0082", color: "#fff" }}>
+      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 20px", background: "#4B0082", color: "#fff" }}>
         <h1 style={{ margin: 0 }}>Leitor e Conversor de PDF</h1>
         <div>
-          <button onClick={() => setTab("leitor")} style={{ border: "none", background: "none", borderBottom: tab === "leitor" ? "2px solid #9307caff" : "none", color: tab === "leitor" ? "#fff" : "#7700ffff", marginRight: 10, padding: 5, cursor: "pointer" }}>Leitor</button>
-          <button onClick={() => setTab("conversor")} style={{ border: "none", background: "none", borderBottom: tab === "conversor" ? "2px solid #7700ffff" : "none", color: tab === "conversor" ? "#700baaff" : "#fff", padding: 5, cursor: "pointer" }}>Conversor</button>
+          <button
+            onClick={() => setTab("leitor")}
+            style={{ border: "none", background: "none", borderBottom: tab === "leitor" ? "2px solid #9307caff" : "none", color: tab === "leitor" ? "#ffffffff" : "#7700ffff", marginRight: 10, padding: 5, cursor: "pointer" }}
+          >
+            Leitor
+          </button>
+          <button
+            onClick={() => setTab("conversor")}
+            style={{ border: "none", background: "none", borderBottom: tab === "conversor" ? "2px solid #7700ffff" : "none", color: tab === "conversor" ? "#700baaff" : "#fff", padding: 5, cursor: "pointer" }}
+          >
+            Conversor
+          </button>
         </div>
       </header>
 
@@ -143,23 +146,43 @@ export default function App() {
             <input type="file" accept="application/pdf" onChange={handleFileChange} />
           </div>
           <div style={{ flex: 1, background: "#616161ff", display: "flex", justifyContent: "center", alignItems: "center", border: "1px solid #ccc", borderRadius: 8 }}>
-            {pdfUrl ? <iframe ref={iframeRef} src={pdfUrl} style={{ width: "100%", height: "100%" }} title="PDF" /> : <span style={{ color: "#888" }}>Selecione um PDF para visualizar.</span>}
+            {pdfUrl ? (
+              <iframe ref={iframeRef} src={pdfUrl} style={{ width: "100%", height: "100%" }} title="PDF" />
+            ) : (
+              <span style={{ color: "#888" }}>Selecione um PDF para visualizar.</span>
+            )}
           </div>
         </div>
 
         <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-          {tab === "conversor" && <>
-            <label style={{ display: "flex", alignItems: "center", gap: 5, color: "#333" }}>
-              <input type="checkbox" checked={includePageBreaks} onChange={(e) => setIncludePageBreaks(e.target.checked)} /> Inserir quebra de página
-            </label>
-            <motion.button whileTap={{ scale: 0.98 }} disabled={!file || busy} onClick={handleConvert} style={{ padding: 10, marginTop: 10, cursor: "pointer", backgroundColor: "#535353ff", color: "#a7a7a7ff", border: "none", borderRadius: 5 }}>
-              {busy ? <><Loader2 style={{ width: 16, height: 16, marginRight: 5 }} className="animate-spin" /> Convertendo...</> : <><FileDown style={{ width: 16, height: 16, marginRight: 5 }} /> Converter</>}
-            </motion.button>
-            {status && <p style={{ marginTop: 10, color: statusError ? "red" : "green" }}>{status}</p>}
-          </>}
+          {tab === "conversor" && (
+            <>
+              <label style={{ display: "flex", alignItems: "center", gap: 5, color: "#333" }}>
+                <input type="checkbox" checked={includePageBreaks} onChange={(e) => setIncludePageBreaks(e.target.checked)} />
+                Inserir quebra de página
+              </label>
+              <motion.button
+                whileTap={{ scale: 0.98 }}
+                disabled={!file || busy}
+                onClick={handleConvert}
+                style={{ padding: 10, marginTop: 10, cursor: "pointer", backgroundColor: "#535353ff", color: "#a7a7a7ff", border: "none", borderRadius: 5 }}
+              >
+                {busy ? (
+                  <>
+                    <Loader2 style={{ width: 16, height: 16, marginRight: 5 }} className="animate-spin" />
+                    Convertendo...
+                  </>
+                ) : (
+                  <>
+                    <FileDown style={{ width: 16, height: 16, marginRight: 5 }} /> Converter
+                  </>
+                )}
+              </motion.button>
+              {status && <p style={{ marginTop: 10, color: statusError ? "red" : "green" }}>{status}</p>}
+            </>
+          )}
         </div>
       </main>
     </div>
   );
 }
-
