@@ -5,7 +5,7 @@ import { Document, Packer, Paragraph, TextRun, PageBreak } from "docx";
 import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf";
 import pdfWorker from "./pdfWorker.js";
 
-// Configura o worker local
+// Configura o worker corretamente
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
 export default function App() {
