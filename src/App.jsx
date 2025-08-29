@@ -2,11 +2,12 @@ import React, { useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { FileDown, Loader2 } from "lucide-react";
 import { Document, Packer, Paragraph, TextRun, PageBreak } from "docx";
-import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf";
-import pdfWorker from "./pdfWorker.js";
 
-// Configura o worker corretamente
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
+// Importa PDF.js principal
+import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf";
+
+// Configura o worker para usar arquivo estático
+pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdfjs/pdf.worker.min.js";
 
 export default function App() {
   const [tab, setTab] = useState("leitor");
@@ -35,21 +36,41 @@ export default function App() {
     setStatusError(false);
   }
 
-  async function extractTextWithPDFjs(pdfArrayBuffer) {
-    const pdf = await pdfjsLib.getDocument({ data: pdfArrayBuffer }).promise;
+  async function extractTextWithPDFjs(pdfArrayBuffer, passwordCallback) {
+    let pdf;
+    try {
+      const loadingTask = pdfjsLib.getDocument({
+        data: pdfArrayBuffer,
+        password: passwordCallback,
+      });
+      pdf = await loadingTask.promise;
+    } catch (err) {
+      throw new Error("Não foi possível abrir o PDF.");
+    }
+
     const allPagesText = [];
 
     for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-      setStatus(`Lendo página ${pageNum}/${pdf.numPages}...`);
-      const page = await pdf.getPage(pageNum);
-      const textContent = await page.getTextContent();
-      const pageText = textContent.items
-        .map((item) => ("str" in item ? item.str : item?.text || ""))
-        .join(" ")
-        .replace(/[\u0000-\u001F]+/g, " ")
-        .replace(/\s+/g, " ")
-        .trim();
-      allPagesText.push(pageText);
+      try {
+        setStatus(`Lendo página ${pageNum}/${pdf.numPages}...`);
+        const page = await pdf.getPage(pageNum);
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items
+          .map((item) => ("str" in item ? item.str : item?.text || ""))
+          .join(" ")
+          .replace(/[\u0000-\u001F]+/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
+
+        allPagesText.push(pageText);
+      } catch (err) {
+        console.warn(`Erro ao ler a página ${pageNum}:`, err);
+        allPagesText.push("");
+      }
+    }
+
+    if (allPagesText.length === 0) {
+      throw new Error("Não foi possível extrair texto de nenhuma página do PDF.");
     }
 
     return allPagesText;
@@ -57,7 +78,10 @@ export default function App() {
 
   function splitIntoParagraphs(text) {
     const byPunct = text.split(/([.!?])\s+/).reduce((acc, cur, idx, arr) => {
-      if (idx % 2 === 0) acc.push(cur + (arr[idx + 1] || ""));
+      if (idx % 2 === 0) {
+        const sentence = cur + (arr[idx + 1] || "");
+        acc.push(sentence.trim());
+      }
       return acc;
     }, []);
 
@@ -67,7 +91,9 @@ export default function App() {
       if ((buf + " " + s).length > 1000 && buf.length > 0) {
         paras.push(buf.trim());
         buf = s;
-      } else buf = buf ? buf + " " + s : s;
+      } else {
+        buf = buf ? buf + " " + s : s;
+      }
     }
     if (buf) paras.push(buf.trim());
     return paras.filter(Boolean);
@@ -81,7 +107,16 @@ export default function App() {
 
     try {
       const buf = await file.arrayBuffer();
-      const pages = await extractTextWithPDFjs(buf);
+
+      const pages = await extractTextWithPDFjs(buf, async (reason) => {
+        const promptMessage =
+          reason === "needPassword"
+            ? "Este PDF está protegido por senha. Digite a senha:"
+            : "Senha incorreta. Tente novamente:";
+        const pwd = window.prompt(promptMessage);
+        if (!pwd) throw new Error("Senha não fornecida.");
+        return pwd;
+      });
 
       setStatus("Gerando DOCX...");
       const doc = new Document({
@@ -111,7 +146,7 @@ export default function App() {
       setStatus("Pronto! Documento gerado.");
       setStatusError(false);
     } catch (err) {
-      console.error(err);
+      console.error("Erro detalhado:", err);
       setStatus(err.message || "Falha na conversão do PDF.");
       setStatusError(true);
     } finally {
@@ -120,12 +155,54 @@ export default function App() {
   }
 
   return (
-    <div style={{ fontFamily: "Arial,sans-serif", width: "100vw", height: "100vh", display: "flex", flexDirection: "column" }}>
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 20px", background: "#4B0082", color: "#fff" }}>
+    <div
+      style={{
+        fontFamily: "Arial, sans-serif",
+        width: "100vw",
+        height: "100vh",
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
+      <header
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          padding: "10px 20px",
+          background: "#4B0082",
+          color: "#fff",
+        }}
+      >
         <h1 style={{ margin: 0 }}>Leitor e Conversor de PDF</h1>
         <div>
-          <button onClick={() => setTab("leitor")} style={{ border: "none", background: "none", borderBottom: tab === "leitor" ? "2px solid #9307caff" : "none", color: tab === "leitor" ? "#ffffffff" : "#7700ffff", marginRight: 10, padding: 5, cursor: "pointer" }}>Leitor</button>
-          <button onClick={() => setTab("conversor")} style={{ border: "none", background: "none", borderBottom: tab === "conversor" ? "2px solid #7700ffff" : "none", color: tab === "conversor" ? "#700baaff" : "#fff", padding: 5, cursor: "pointer" }}>Conversor</button>
+          <button
+            onClick={() => setTab("leitor")}
+            style={{
+              border: "none",
+              background: "none",
+              borderBottom: tab === "leitor" ? "2px solid #9307caff" : "none",
+              color: tab === "leitor" ? "#ffffffff" : "#7700ffff",
+              marginRight: 10,
+              padding: 5,
+              cursor: "pointer",
+            }}
+          >
+            Leitor
+          </button>
+          <button
+            onClick={() => setTab("conversor")}
+            style={{
+              border: "none",
+              background: "none",
+              borderBottom: tab === "conversor" ? "2px solid #7700ffff" : "none",
+              color: tab === "conversor" ? "#700baaff" : "#fff",
+              padding: 5,
+              cursor: "pointer",
+            }}
+          >
+            Conversor
+          </button>
         </div>
       </header>
 
@@ -134,8 +211,27 @@ export default function App() {
           <div style={{ marginBottom: 10 }}>
             <input type="file" accept="application/pdf" onChange={handleFileChange} />
           </div>
-          <div style={{ flex: 1, background: "#616161ff", display: "flex", justifyContent: "center", alignItems: "center", border: "1px solid #ccc", borderRadius: 8 }}>
-            {pdfUrl ? <iframe ref={iframeRef} src={pdfUrl} style={{ width: "100%", height: "100%" }} title="PDF" /> : <span style={{ color: "#888" }}>Selecione um PDF para visualizar.</span>}
+          <div
+            style={{
+              flex: 1,
+              background: "#616161ff",
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              border: "1px solid #ccc",
+              borderRadius: 8,
+            }}
+          >
+            {pdfUrl ? (
+              <iframe
+                ref={iframeRef}
+                src={pdfUrl}
+                style={{ width: "100%", height: "100%" }}
+                title="PDF"
+              />
+            ) : (
+              <span style={{ color: "#888" }}>Selecione um PDF para visualizar.</span>
+            )}
           </div>
         </div>
 
@@ -143,13 +239,41 @@ export default function App() {
           {tab === "conversor" && (
             <>
               <label style={{ display: "flex", alignItems: "center", gap: 5, color: "#333" }}>
-                <input type="checkbox" checked={includePageBreaks} onChange={(e) => setIncludePageBreaks(e.target.checked)} />
+                <input
+                  type="checkbox"
+                  checked={includePageBreaks}
+                  onChange={(e) => setIncludePageBreaks(e.target.checked)}
+                />
                 Inserir quebra de página
               </label>
-              <motion.button whileTap={{ scale: 0.98 }} disabled={!file || busy} onClick={handleConvert} style={{ padding: 10, marginTop: 10, cursor: "pointer", backgroundColor: "#535353ff", color: "#a7a7a7ff", border: "none", borderRadius: 5 }}>
-                {busy ? <><Loader2 style={{ width: 16, height: 16, marginRight: 5 }} className="animate-spin" /> Convertendo...</> : <><FileDown style={{ width: 16, height: 16, marginRight: 5 }} /> Converter</>}
+              <motion.button
+                whileTap={{ scale: 0.98 }}
+                disabled={!file || busy}
+                onClick={handleConvert}
+                style={{
+                  padding: 10,
+                  marginTop: 10,
+                  cursor: "pointer",
+                  backgroundColor: "#535353ff",
+                  color: "#a7a7a7ff",
+                  border: "none",
+                  borderRadius: 5,
+                }}
+              >
+                {busy ? (
+                  <>
+                    <Loader2 style={{ width: 16, height: 16, marginRight: 5 }} className="animate-spin" />
+                    Convertendo...
+                  </>
+                ) : (
+                  <>
+                    <FileDown style={{ width: 16, height: 16, marginRight: 5 }} /> Converter
+                  </>
+                )}
               </motion.button>
-              {status && <p style={{ marginTop: 10, color: statusError ? "red" : "green" }}>{status}</p>}
+              {status && (
+                <p style={{ marginTop: 10, color: statusError ? "red" : "green" }}>{status}</p>
+              )}
             </>
           )}
         </div>
