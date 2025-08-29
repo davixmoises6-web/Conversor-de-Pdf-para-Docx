@@ -30,10 +30,9 @@ export default function App() {
     setStatusError(false);
   }
 
-  // Função atualizada para extrair texto do PDF
+  // Função para extrair texto do PDF usando CDN worker
   async function extractTextWithPDFjs(pdfArrayBuffer) {
-    const pdfjs = await import("pdfjs-dist/legacy/build/pdf");
-    import("pdfjs-dist/legacy/build/pdf.worker.entry"); // garante worker local
+    const pdfjs = await import("pdfjs-dist/build/pdf");
 
     pdfjs.GlobalWorkerOptions.workerSrc =
       "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.8.69/pdf.worker.min.js";
@@ -58,7 +57,7 @@ export default function App() {
         allPagesText.push(pageText);
       } catch (err) {
         console.warn(`Erro ao ler a página ${pageNum}:`, err);
-        allPagesText.push(""); // mantém o índice da página
+        allPagesText.push("");
       }
     }
 
@@ -270,4 +269,5 @@ export default function App() {
     </div>
   );
 }
+
 
