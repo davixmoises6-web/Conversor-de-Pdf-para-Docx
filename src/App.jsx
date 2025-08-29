@@ -5,7 +5,7 @@ import { Document, Packer, Paragraph, TextRun, PageBreak } from "docx";
 import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf";
 import pdfWorkerUrl from "pdfjs-dist/legacy/build/pdf.worker.entry";
 
-// Configuração do worker para Vite
+// Configuração do worker local para Vite
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(pdfWorkerUrl, import.meta.url).toString();
 
 export default function App() {
