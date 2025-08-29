@@ -1,3 +1,3 @@
 // src/pdfWorker.js
-import pdfWorker from "pdfjs-dist/legacy/build/pdf.worker.entry";
-export default pdfWorker;
+import PdfWorker from "pdfjs-dist/legacy/build/pdf.worker.entry?worker";
+export default PdfWorker;
