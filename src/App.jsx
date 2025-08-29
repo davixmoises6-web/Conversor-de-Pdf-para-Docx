@@ -3,10 +3,10 @@ import { motion } from "framer-motion";
 import { FileDown, Loader2 } from "lucide-react";
 import { Document, Packer, Paragraph, TextRun, PageBreak } from "docx";
 import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf";
-import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.js?url";
 
-// Configura o worker corretamente para Vite
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+// Usa worker via CDN para evitar problemas de Vite
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.8.69/pdf.worker.min.js";
 
 export default function App() {
   const [tab, setTab] = useState("leitor");
